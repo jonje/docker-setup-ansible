@@ -1,0 +1,46 @@
+---
+- name: Setup Docker Environment
+  hosts: all
+  remote_user: jpjensen
+  become: true
+
+  tasks:
+    - name: Perform dist-upgrade
+      ansible.builtin.apt:
+        upgrade: dist
+        update_cache: yes
+
+    - name: Check if a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+        get_checksum: no
+      register: reboot_required_file
+
+    - name: Reboot server if required
+      ansible.builtin.reboot:
+      when: reboot_required_file.stat.exists
+    
+    - name: Install Pre packages
+      ansible.builtin.apt:
+        name: ca-certificates, curl
+        state: present
+
+    - name: Setup new docker repository
+      block:
+      - name: Get signing key for docker
+        ansible.builtin.get_url:
+          url: https://download.docker.com/linux/ubuntu/gpg
+          dest: /etc/apt/keyrings/docker.asc
+      - name: Add docker repository
+        ansible.builtin.apt_repository:
+          repo: "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+          state: present
+    - name: Install Docker
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
